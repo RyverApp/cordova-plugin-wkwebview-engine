@@ -273,6 +273,22 @@ static void * KVOContext = &KVOContext;
     } else {
         [wkWebView.scrollView setDecelerationRate:UIScrollViewDecelerationRateFast];
     }
+ 
+    BOOL keyboardDisplayRequiresUserAction = YES; // KeyboardDisplayRequiresUserAction - defaults to YES
+    if ([settings cordovaSettingForKey:@"KeyboardDisplayRequiresUserAction"] != nil) {
+        if ([settings cordovaSettingForKey:@"KeyboardDisplayRequiresUserAction"]) {
+            keyboardDisplayRequiresUserAction = [(NSNumber*)[settings cordovaSettingForKey:@"KeyboardDisplayRequiresUserAction"] boolValue];
+        }
+    }
+    
+    // property check for compiling under iOS < 6
+    if ([self.webView respondsToSelector:@selector(setKeyboardDisplayRequiresUserAction:)]) {
+        [self.webView setValue:[NSNumber numberWithBool:keyboardDisplayRequiresUserAction] forKey:@"keyboardDisplayRequiresUserAction"];
+    }
+    
+    if (!keyboardDisplayRequiresUserAction) {
+        [self keyboardDisplayDoesNotRequireUserAction];
+    }
 }
 
 - (void)updateWithInfo:(NSDictionary*)info
@@ -320,6 +336,18 @@ static void * KVOContext = &KVOContext;
 - (UIView*)webView
 {
     return self.engineWebView;
+}
+
+- (void) keyboardDisplayDoesNotRequireUserAction
+{
+    SEL sel = sel_getUid("_startAssistingNode:userIsInteracting:blurPreviousNode:userObject:");
+    Class WKContentView = NSClassFromString(@"WKContentView");
+    Method method = class_getInstanceMethod(WKContentView, sel);
+    IMP originalImp = method_getImplementation(method);
+    IMP imp = imp_implementationWithBlock(^void(id me, void* arg0, BOOL arg1, BOOL arg2, id arg3) {
+        ((void (*)(id, SEL, void*, BOOL, BOOL, id))originalImp)(me, sel, arg0, TRUE, arg2, arg3);
+    });
+    method_setImplementation(method, imp);
 }
 
 #pragma mark WKScriptMessageHandler implementation
